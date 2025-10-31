@@ -47,7 +47,6 @@ const VideoCallRoom: React.FC = () => {
   };
 
   const {
-    localStream,
     remoteStream,
     isConnected,
     isConnecting,
@@ -405,7 +404,6 @@ const VideoCallRoom: React.FC = () => {
             onEndCall={handleEndCall}
             isMuted={isMuted}
             isVideoOff={isVideoOff}
-            isConnected={localStream !== null}
           />
         </div>
 

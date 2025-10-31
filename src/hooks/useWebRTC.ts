@@ -287,40 +287,40 @@ export const useWebRTC = () => {
   );
 
   const toggleMute = useCallback(() => {
-    if (state.localStream) {
-      const audioTrack = state.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        const newMutedState = !audioTrack.enabled;
-        audioTrack.enabled = !newMutedState;
+    setState((prevState) => {
+      if (prevState.localStream) {
+        const audioTrack = prevState.localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          const newMutedState = !audioTrack.enabled;
+          audioTrack.enabled = !newMutedState;
 
-        // Only update state if it actually changed
-        setState((prev) => {
-          if (prev.isMuted !== newMutedState) {
-            return { ...prev, isMuted: newMutedState };
+          // Only update state if it actually changed
+          if (prevState.isMuted !== newMutedState) {
+            return { ...prevState, isMuted: newMutedState };
           }
-          return prev;
-        });
+        }
       }
-    }
-  }, [state.localStream]);
+      return prevState;
+    });
+  }, []);
 
   const toggleVideo = useCallback(() => {
-    if (state.localStream) {
-      const videoTrack = state.localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        const newVideoOffState = !videoTrack.enabled;
-        videoTrack.enabled = !newVideoOffState;
+    setState((prevState) => {
+      if (prevState.localStream) {
+        const videoTrack = prevState.localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const newVideoOffState = !videoTrack.enabled;
+          videoTrack.enabled = !newVideoOffState;
 
-        // Only update state if it actually changed
-        setState((prev) => {
-          if (prev.isVideoOff !== newVideoOffState) {
-            return { ...prev, isVideoOff: newVideoOffState };
+          // Only update state if it actually changed
+          if (prevState.isVideoOff !== newVideoOffState) {
+            return { ...prevState, isVideoOff: newVideoOffState };
           }
-          return prev;
-        });
+        }
       }
-    }
-  }, [state.localStream]);
+      return prevState;
+    });
+  }, []);
 
   const resetPeerConnection = useCallback(() => {
     console.log("Resetting peer connection...");

@@ -54,7 +54,6 @@ interface CallControlsProps {
   onEndCall: () => void;
   isMuted: boolean;
   isVideoOff: boolean;
-  isConnected: boolean;
 }
 
 const CallControls: React.FC<CallControlsProps> = ({
@@ -63,7 +62,6 @@ const CallControls: React.FC<CallControlsProps> = ({
   onEndCall,
   isMuted,
   isVideoOff,
-  isConnected,
 }) => {
   return (
     <div className="flex justify-center space-x-4 p-4 bg-gray-800 rounded-lg">
@@ -71,7 +69,7 @@ const CallControls: React.FC<CallControlsProps> = ({
       <ControlButton
         onClick={onToggleMute}
         isActive={!isMuted}
-        disabled={!isConnected}
+        disabled={false}
       >
         {isMuted ? (
           <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
@@ -96,7 +94,7 @@ const CallControls: React.FC<CallControlsProps> = ({
       <ControlButton
         onClick={onToggleVideo}
         isActive={!isVideoOff}
-        disabled={!isConnected}
+        disabled={false}
       >
         {isVideoOff ? (
           <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
