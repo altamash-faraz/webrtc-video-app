@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import VideoPlayer from "@/components/VideoPlayer";
 import CallControls from "@/components/CallControls";
 import { useWebRTC } from '@/hooks/useWebRTC';
-import { usePeerJSSignaling } from '@/hooks/usePeerJSSignaling';
+import { useRoomSignaling } from '@/hooks/useRoomSignaling';
 
 const VideoCallRoom: React.FC = () => {
   const params = useParams();
@@ -74,7 +74,7 @@ const VideoCallRoom: React.FC = () => {
     sendMessage,
     joinRoom,
     leaveRoom,
-  } = usePeerJSSignaling(roomId);
+  } = useRoomSignaling(roomId);
 
   // Initialize video when component mounts - only run once
   useEffect(() => {
@@ -329,11 +329,6 @@ const VideoCallRoom: React.FC = () => {
 
             {/* Users count */}
             <div className="text-sm text-gray-400">Users: {users.length}</div>
-
-            {/* Peer ID info for manual connection */}
-            <div className="text-xs text-gray-400 max-w-xs">
-              <span className="block">Press F12 for connection info</span>
-            </div>
 
             {/* Share room button */}
             <button
