@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { io, Socket } from "socket.io-client";
 
 export interface SignalingMessage {
   type:
@@ -17,19 +16,14 @@ export interface SignalingMessage {
   id?: string;
 }
 
-// Real-time WebRTC signaling using Socket.IO
+// Real-time WebRTC signaling using BroadcastChannel for local testing
 export const useRealtimeSignaling = (roomId: string) => {
   const [isConnected, setIsConnected] = useState(false);
   const [users, setUsers] = useState<string[]>([]);
   const [messages, setMessages] = useState<SignalingMessage[]>([]);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionError] = useState<string | null>(null);
 
-  const socketRef = useRef<Socket | null>(null);
-
-  // Connect to signaling server (you can replace with your own server)
-  const SIGNALING_SERVER =
-    process.env.NEXT_PUBLIC_SIGNALING_SERVER || "disabled";
-  const SOCKET_DISABLED = SIGNALING_SERVER === "disabled";
+  const channelRef = useRef<BroadcastChannel | null>(null);
 
   const sendMessage = useCallback(
     (message: SignalingMessage) => {
@@ -40,171 +34,128 @@ export const useRealtimeSignaling = (roomId: string) => {
         id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       };
 
-      if (!SOCKET_DISABLED && socketRef.current?.connected) {
-        // Send via Socket.IO
-        socketRef.current.emit("webrtc-message", messageWithRoom);
-      } else {
-        // Fallback to localStorage for development
-        console.warn("Socket not connected, using localStorage fallback");
-        try {
-          const storageKey = `room_${roomId}`;
-          const existingData = localStorage.getItem(storageKey);
-          const existingMessages = existingData ? JSON.parse(existingData) : [];
-          const updatedMessages = [
-            ...existingMessages.slice(-50),
-            messageWithRoom,
-          ]; // Keep last 50 messages
-          localStorage.setItem(storageKey, JSON.stringify(updatedMessages));
-          setMessages((prev) => [...prev, messageWithRoom]);
-        } catch (error) {
-          console.error("Fallback localStorage also failed:", error);
-        }
+      // Send via BroadcastChannel for local cross-tab communication
+      if (channelRef.current) {
+        channelRef.current.postMessage(messageWithRoom);
+        console.log("Sent message via BroadcastChannel:", messageWithRoom.type);
+      }
+
+      // Also store in localStorage as backup
+      try {
+        const storageKey = `room_${roomId}`;
+        const existingData = localStorage.getItem(storageKey);
+        const existingMessages = existingData ? JSON.parse(existingData) : [];
+        const updatedMessages = [
+          ...existingMessages.slice(-50),
+          messageWithRoom,
+        ]; // Keep last 50 messages
+        localStorage.setItem(storageKey, JSON.stringify(updatedMessages));
+        
+        // Add to local messages immediately for sender
+        setMessages((prev) => [...prev.slice(-49), messageWithRoom]);
+      } catch (error) {
+        console.error("Fallback localStorage failed:", error);
       }
     },
-    [roomId, SOCKET_DISABLED],
+    [roomId],
   );
 
   const joinRoom = useCallback(
     (userId: string) => {
-      if (socketRef.current?.connected) {
-        socketRef.current.emit("join-room", { roomId, userId });
-      } else {
-        // Fallback behavior
-        console.warn("Socket not connected, using fallback join");
-        setUsers((prev) => {
-          if (!prev.includes(userId)) {
-            return [...prev, userId];
-          }
-          return prev;
+      // Announce joining via BroadcastChannel
+      if (channelRef.current) {
+        channelRef.current.postMessage({
+          type: "user-joined",
+          userId,
+          roomId,
+          timestamp: Date.now(),
         });
       }
+
+      setUsers((prev) => {
+        if (!prev.includes(userId)) {
+          return [...prev, userId];
+        }
+        return prev;
+      });
     },
     [roomId],
   );
 
   const leaveRoom = useCallback(
     (userId: string) => {
-      if (socketRef.current?.connected) {
-        socketRef.current.emit("leave-room", { roomId, userId });
+      // Announce leaving via BroadcastChannel
+      if (channelRef.current) {
+        channelRef.current.postMessage({
+          type: "user-left",
+          userId,
+          roomId,
+          timestamp: Date.now(),
+        });
       }
+
       setUsers((prev) => prev.filter((id) => id !== userId));
       setMessages([]);
     },
     [roomId],
   );
 
-  // Initialize socket connection
+  // Initialize BroadcastChannel for cross-tab communication
   useEffect(() => {
-    if (SOCKET_DISABLED) {
-      console.log("Socket.IO disabled, using localStorage-only mode");
-      return;
-    }
+    const channelName = `webrtc-room-${roomId}`;
+    
+    // Create BroadcastChannel for this room
+    channelRef.current = new BroadcastChannel(channelName);
+    
+    console.log(`Connected to room: ${roomId} via BroadcastChannel`);
 
-    if (socketRef.current?.connected) return;
+    // Listen for messages from other tabs/windows
+    channelRef.current.onmessage = (event) => {
+      const message: SignalingMessage = event.data;
+      console.log("Received message via BroadcastChannel:", message.type);
 
-    const connectSocket = async () => {
-      try {
-        socketRef.current = io(SIGNALING_SERVER, {
-          transports: ["websocket", "polling"],
-          timeout: 10000,
-          forceNew: true,
+      if (message.type === "user-joined") {
+        setUsers((prev) => {
+          if (!prev.includes(message.userId!)) {
+            return [...prev, message.userId!];
+          }
+          return prev;
         });
-
-        const socket = socketRef.current;
-
-        socket.on("connect", () => {
-          console.log("Connected to signaling server");
-          setIsConnected(true);
-          setConnectionError(null);
-        });
-
-        socket.on("disconnect", () => {
-          console.log("Disconnected from signaling server");
-          setIsConnected(false);
-        });
-
-        socket.on("connect_error", (error) => {
-          console.error("Signaling server connection error:", error);
-          setConnectionError(
-            "Failed to connect to signaling server. Using fallback mode.",
-          );
-          setIsConnected(true);
-        });
-
-        // Handle room events
-        socket.on("user-joined", (data: { userId: string; roomId: string }) => {
-          console.log("User joined:", data.userId);
-          setUsers((prev) => {
-            if (!prev.includes(data.userId)) {
-              return [...prev, data.userId];
-            }
-            return prev;
-          });
-        });
-
-        socket.on("user-left", (data: { userId: string; roomId: string }) => {
-          console.log("User left:", data.userId);
-          setUsers((prev) => prev.filter((id) => id !== data.userId));
-        });
-
-        socket.on("room-users", (data: { users: string[] }) => {
-          console.log("Room users updated:", data.users);
-          setUsers(data.users);
-        });
-
+      } else if (message.type === "user-left") {
+        setUsers((prev) => prev.filter((id) => id !== message.userId));
+      } else {
         // Handle WebRTC signaling messages
-        socket.on("webrtc-message", (message: SignalingMessage) => {
-          console.log("Received WebRTC message:", message.type);
-          setMessages((prev) => [...prev, message]);
-        });
-      } catch (error) {
-        console.error("Failed to initialize socket:", error);
-        setConnectionError(
-          "Failed to initialize signaling. Using fallback mode.",
-        );
-        setIsConnected(true);
+        setMessages((prev) => [...prev.slice(-49), message]);
       }
     };
 
-    connectSocket();
+    // Load existing messages from localStorage
+    const loadMessages = () => {
+      try {
+        const existingData = localStorage.getItem(`room_${roomId}`);
+        if (existingData) {
+          const existingMessages = JSON.parse(existingData);
+          setMessages(existingMessages.slice(-10)); // Load last 10 messages
+        }
+      } catch (error) {
+        console.error("Error loading existing messages:", error);
+      }
+    };
+
+    // Set connected state and load messages after setup
+    const timer = setTimeout(() => {
+      setIsConnected(true);
+      loadMessages();
+    }, 0);
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+      clearTimeout(timer);
+      if (channelRef.current) {
+        channelRef.current.close();
+        channelRef.current = null;
       }
     };
-  }, [SIGNALING_SERVER, SOCKET_DISABLED]);
-
-  // Fallback polling for localStorage when socket is not available
-  useEffect(() => {
-    if (socketRef.current?.connected || !isConnected) return;
-
-    const interval = setInterval(() => {
-      try {
-        const roomData = localStorage.getItem(`room_${roomId}`);
-        const roomMessages = roomData ? JSON.parse(roomData) : [];
-
-        setMessages((prevMessages) => {
-          const currentMessageIds = new Set(prevMessages.map((m) => m.id));
-          const newMessages = roomMessages.filter(
-            (msg: SignalingMessage) => msg.id && !currentMessageIds.has(msg.id),
-          );
-
-          if (newMessages.length > 0) {
-            const allMessages = [...prevMessages, ...newMessages];
-            return allMessages.slice(-50); // Keep last 50 messages
-          }
-
-          return prevMessages;
-        });
-      } catch (error) {
-        console.error("Error in fallback polling:", error);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isConnected, roomId]);
+  }, [roomId]);
 
   return {
     isConnected,
