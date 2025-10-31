@@ -1,25 +1,26 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function RoomSelector() {
-  const [username, setUsername] = useState('');
-  const [roomId, setRoomId] = useState('');
+  const [username, setUsername] = useState("");
+  const [roomId, setRoomId] = useState("");
   const router = useRouter();
 
   const joinRoom = () => {
     if (!username.trim()) {
-      alert('Please enter a username');
+      alert("Please enter a username");
       return;
     }
 
-    const finalRoomId = roomId.trim() || Math.random().toString(36).substring(2, 8).toUpperCase();
-    
+    const finalRoomId =
+      roomId.trim() || Math.random().toString(36).substring(2, 8).toUpperCase();
+
     const params = new URLSearchParams({
       username: username.trim(),
-      camera: 'true',
-      microphone: 'true'
+      camera: "true",
+      microphone: "true",
     });
 
     router.push(`/room/${finalRoomId}?${params.toString()}`);
@@ -29,8 +30,12 @@ export default function RoomSelector() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Join Video Call</h1>
-          <p className="text-gray-600">Enter your details to start or join a video call</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Join Video Call
+          </h1>
+          <p className="text-gray-600">
+            Enter your details to start or join a video call
+          </p>
         </div>
 
         <div className="mb-6">
@@ -59,7 +64,9 @@ export default function RoomSelector() {
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none uppercase text-gray-900"
             maxLength={10}
           />
-          <p className="text-xs text-gray-500 mt-1">Leave blank to create a new room</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Leave blank to create a new room
+          </p>
         </div>
 
         <button
@@ -67,7 +74,7 @@ export default function RoomSelector() {
           disabled={!username.trim()}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-all"
         >
-          {roomId ? 'Join Room' : 'Create & Join Room'}
+          {roomId ? "Join Room" : "Create & Join Room"}
         </button>
 
         <div className="mt-6 text-center">

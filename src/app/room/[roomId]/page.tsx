@@ -1,48 +1,48 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import VideoPlayer from '@/components/VideoPlayer';
-import CallControls from '@/components/CallControls';
-import { useWebRTC } from '@/hooks/useWebRTC';
-import { useRealtimeSignaling } from '@/hooks/useRealtimeSignaling';
+import React, { useEffect, useState, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import VideoPlayer from "@/components/VideoPlayer";
+import CallControls from "@/components/CallControls";
+import { useWebRTC } from "@/hooks/useWebRTC";
+import { useRealtimeSignaling } from "@/hooks/useRealtimeSignaling";
 
 const VideoCallRoom: React.FC = () => {
   const params = useParams();
   const searchParams = useSearchParams();
   const roomId = params.roomId as string;
-  const username = searchParams.get('username') || 'Anonymous';
-  const initialCameraEnabled = searchParams.get('camera') === 'true';
-  const initialMicEnabled = searchParams.get('mic') === 'true';
-  
+  const username = searchParams.get("username") || "Anonymous";
+  const initialCameraEnabled = searchParams.get("camera") === "true";
+  const initialMicEnabled = searchParams.get("mic") === "true";
+
   const [isInitialized, setIsInitialized] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Generate shareable room URL
   const [roomUrl, setRoomUrl] = useState(`/room/${roomId}?username=`);
-  
+
   useEffect(() => {
     // Set the full URL only on client side to avoid hydration mismatch
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       setRoomUrl(`${window.location.origin}/room/${roomId}?username=`);
     }
   }, [roomId]);
 
   const copyRoomLink = async () => {
     try {
-      await navigator.clipboard.writeText(roomUrl + 'NewUser');
-      alert('Room link copied to clipboard!');
+      await navigator.clipboard.writeText(roomUrl + "NewUser");
+      alert("Room link copied to clipboard!");
     } catch (error) {
       // Fallback for browsers that don't support clipboard API
-      console.warn('Clipboard API not supported:', error);
-      const textArea = document.createElement('textarea');
-      textArea.value = roomUrl + 'NewUser';
+      console.warn("Clipboard API not supported:", error);
+      const textArea = document.createElement("textarea");
+      textArea.value = roomUrl + "NewUser";
       document.body.appendChild(textArea);
       textArea.select();
-      document.execCommand('copy');
+      document.execCommand("copy");
       document.body.removeChild(textArea);
-      alert('Room link copied to clipboard!');
+      alert("Room link copied to clipboard!");
     }
   };
 
@@ -80,15 +80,15 @@ const VideoCallRoom: React.FC = () => {
   // Initialize video when component mounts - only run once
   useEffect(() => {
     let mounted = true;
-    
+
     const initializeCall = async () => {
       if (!mounted) return;
-      
+
       try {
         // Try to start video with user preferences
         await startLocalVideo();
         if (!mounted) return;
-        
+
         // Apply initial settings based on user preferences from join screen
         if (!initialMicEnabled) {
           toggleMute();
@@ -96,24 +96,30 @@ const VideoCallRoom: React.FC = () => {
         if (!initialCameraEnabled) {
           toggleVideo();
         }
-        
+
         joinRoom(username);
         if (!mounted) return;
-        
+
         setIsInitialized(true);
       } catch (error) {
         if (!mounted) return;
-        
-        console.warn('Camera access failed, starting demo mode:', error);
-        
+
+        console.warn("Camera access failed, starting demo mode:", error);
+
         // Try demo mode as fallback
         try {
           startDemoMode();
           joinRoom(username);
           setIsInitialized(true);
-          setConnectionError('Camera/microphone access not available. Please allow permissions in your browser and refresh the page. The app will work for text chat and screen sharing.');
+          setConnectionError(
+            "Camera/microphone access not available. Please allow permissions in your browser and refresh the page. The app will work for text chat and screen sharing.",
+          );
         } catch {
-          setConnectionError(error instanceof Error ? error.message : 'Failed to initialize video call');
+          setConnectionError(
+            error instanceof Error
+              ? error.message
+              : "Failed to initialize video call",
+          );
         }
       }
     };
@@ -139,38 +145,47 @@ const VideoCallRoom: React.FC = () => {
 
     // Process only the newest unprocessed message
     const newMessage = messages[messages.length - 1];
-    
-    if (!newMessage?.id || 
-        newMessage.userId === username || 
-        processedMessageIds.current.has(newMessage.id)) {
+
+    if (
+      !newMessage?.id ||
+      newMessage.userId === username ||
+      processedMessageIds.current.has(newMessage.id)
+    ) {
       return;
     }
 
     lastProcessedIndex.current = messages.length - 1;
-    console.log('Processing signaling message:', newMessage.type, 'from:', newMessage.userId);
+    console.log(
+      "Processing signaling message:",
+      newMessage.type,
+      "from:",
+      newMessage.userId,
+    );
     processedMessageIds.current.add(newMessage.id);
 
     const processMessage = async () => {
       try {
         switch (newMessage.type) {
-          case 'offer':
-            console.log('Received offer, creating answer...');
-            const answer = await createAnswer(newMessage.data as RTCSessionDescriptionInit);
+          case "offer":
+            console.log("Received offer, creating answer...");
+            const answer = await createAnswer(
+              newMessage.data as RTCSessionDescriptionInit,
+            );
             if (answer) {
-              sendMessage({ type: 'answer', data: answer, userId: username });
+              sendMessage({ type: "answer", data: answer, userId: username });
             }
             break;
-          case 'answer':
-            console.log('Received answer, setting remote description...');
+          case "answer":
+            console.log("Received answer, setting remote description...");
             await handleAnswer(newMessage.data as RTCSessionDescriptionInit);
             break;
-          case 'ice-candidate':
-            console.log('Received ICE candidate...');
+          case "ice-candidate":
+            console.log("Received ICE candidate...");
             await addIceCandidate(newMessage.data as RTCIceCandidateInit);
             break;
         }
       } catch (error) {
-        console.error('Error processing message:', error);
+        console.error("Error processing message:", error);
       }
     };
 
@@ -180,25 +195,26 @@ const VideoCallRoom: React.FC = () => {
 
   // Handle user joining (initiate call) - simplified to prevent infinite loops
   useEffect(() => {
-    if (users.length <= 1 || !isInitialized || isConnected || isConnecting) return;
-    
+    if (users.length <= 1 || !isInitialized || isConnected || isConnecting)
+      return;
+
     // Only the first user (alphabetically) should initiate to prevent both sides from calling
     const sortedUsers = [...users].sort();
     const shouldInitiate = sortedUsers[0] === username;
-    
+
     if (!shouldInitiate) return;
 
-    console.log('Initiating call as first user...');
-    
+    console.log("Initiating call as first user...");
+
     // Debounce the offer creation
     const timer = setTimeout(async () => {
       try {
         const offer = await createOffer();
         if (offer) {
-          sendMessage({ type: 'offer', data: offer, userId: username });
+          sendMessage({ type: "offer", data: offer, userId: username });
         }
       } catch (error) {
-        console.error('Error creating offer:', error);
+        console.error("Error creating offer:", error);
       }
     }, 1000);
 
@@ -209,7 +225,7 @@ const VideoCallRoom: React.FC = () => {
   const handleEndCall = () => {
     endCall();
     leaveRoom(username);
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   if (connectionError || signalingError) {
@@ -217,33 +233,47 @@ const VideoCallRoom: React.FC = () => {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg max-w-lg mx-auto">
           <div className="flex items-center mb-3">
-            <svg className="w-6 h-6 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            <svg
+              className="w-6 h-6 text-red-500 mr-2"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                clipRule="evenodd"
+              />
             </svg>
-            <strong className="font-bold">Camera/Microphone Access Required</strong>
+            <strong className="font-bold">
+              Camera/Microphone Access Required
+            </strong>
           </div>
-          
+
           <div className="mb-4">
             <p className="text-sm mb-2">{connectionError || signalingError}</p>
-            
+
             {connectionError && (
               <div className="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded text-sm">
                 <p className="font-semibold mb-2">To fix this issue:</p>
                 <ol className="list-decimal list-inside space-y-1">
-                  <li>Click the camera/lock icon in your browser&apos;s address bar</li>
+                  <li>
+                    Click the camera/lock icon in your browser&apos;s address
+                    bar
+                  </li>
                   <li>Allow camera and microphone permissions</li>
                   <li>Refresh this page</li>
                 </ol>
               </div>
             )}
-            
+
             {signalingError && (
               <p className="text-sm mt-3 text-yellow-600 bg-yellow-50 border border-yellow-200 p-2 rounded">
-                <strong>Note:</strong> The video calling features will still work when both users are in the same room.
+                <strong>Note:</strong> The video calling features will still
+                work when both users are in the same room.
               </p>
             )}
           </div>
-          
+
           <div className="flex space-x-3">
             <button
               onClick={() => window.location.reload()}
@@ -252,7 +282,7 @@ const VideoCallRoom: React.FC = () => {
               Try Again
             </button>
             <button
-              onClick={() => window.location.href = '/'}
+              onClick={() => (window.location.href = "/")}
               className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
             >
               Go Back
@@ -267,7 +297,7 @@ const VideoCallRoom: React.FC = () => {
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Storage Usage Indicator - Temporarily disabled to test shaking */}
       {/* <StorageIndicator /> */}
-      
+
       {/* Header */}
       <header className="bg-gray-800 p-4 shadow-lg">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
@@ -278,20 +308,26 @@ const VideoCallRoom: React.FC = () => {
           <div className="flex items-center space-x-4">
             {/* Real-time connection status */}
             <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${
-                isConnected ? 'bg-green-500' : 
-                isConnecting ? 'bg-yellow-500' : 
-                'bg-red-500'
-              }`}></div>
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  isConnected
+                    ? "bg-green-500"
+                    : isConnecting
+                      ? "bg-yellow-500"
+                      : "bg-red-500"
+                }`}
+              ></div>
               <span className="text-sm">
-                {isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Disconnected'}
+                {isConnected
+                  ? "Connected"
+                  : isConnecting
+                    ? "Connecting..."
+                    : "Disconnected"}
               </span>
             </div>
-            
+
             {/* Users count */}
-            <div className="text-sm text-gray-400">
-              Users: {users.length}
-            </div>
+            <div className="text-sm text-gray-400">Users: {users.length}</div>
 
             {/* Share room button */}
             <button
@@ -337,12 +373,22 @@ const VideoCallRoom: React.FC = () => {
               <div className="aspect-video bg-gray-800 rounded-lg flex items-center justify-center">
                 <div className="text-center">
                   <div className="w-16 h-16 mx-auto mb-4 bg-gray-700 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    <svg
+                      className="w-8 h-8 text-gray-400"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   <p className="text-gray-400">
-                    {users.length > 1 ? 'Connecting to peer...' : 'Waiting for someone to join...'}
+                    {users.length > 1
+                      ? "Connecting to peer..."
+                      : "Waiting for someone to join..."}
                   </p>
                 </div>
               </div>
@@ -366,7 +412,7 @@ const VideoCallRoom: React.FC = () => {
         {error && (
           <div className="mt-4 bg-red-500 text-white p-3 rounded-lg max-w-md mx-auto">
             <p className="text-sm mb-2">Error: {error}</p>
-            <button 
+            <button
               onClick={resetPeerConnection}
               className="bg-red-700 hover:bg-red-800 px-3 py-1 rounded text-sm"
             >
@@ -387,10 +433,10 @@ const VideoCallRoom: React.FC = () => {
               <span className="text-gray-400">Connected Users:</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {users.map((user) => (
-                  <span 
-                    key={user} 
+                  <span
+                    key={user}
                     className={`px-2 py-1 rounded text-xs ${
-                      user === username ? 'bg-blue-600' : 'bg-gray-600'
+                      user === username ? "bg-blue-600" : "bg-gray-600"
                     }`}
                   >
                     {user === username ? `${user} (you)` : user}
@@ -402,7 +448,7 @@ const VideoCallRoom: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="mt-4 flex flex-col sm:flex-row gap-2">
             <button
               onClick={copyRoomLink}
@@ -414,13 +460,15 @@ const VideoCallRoom: React.FC = () => {
               </svg>
               <span>Copy Room Link</span>
             </button>
-            
+
             <div className="flex-1 text-xs">
               <span className="text-gray-400">Share this link:</span>
               <div className="mt-1 p-2 bg-gray-700 rounded text-green-400 break-all font-mono">
                 {roomUrl}[USERNAME]
               </div>
-              <p className="text-gray-500 mt-1">Replace [USERNAME] with the person&apos;s name</p>
+              <p className="text-gray-500 mt-1">
+                Replace [USERNAME] with the person&apos;s name
+              </p>
             </div>
           </div>
         </div>
@@ -433,17 +481,18 @@ const VideoCallRoom: React.FC = () => {
               <p className="text-gray-300 mb-4">
                 Send this link to others so they can join your video call:
               </p>
-              
+
               <div className="bg-gray-700 p-3 rounded mb-4">
                 <p className="text-green-400 font-mono text-sm break-all">
                   {roomUrl}YourName
                 </p>
               </div>
-              
+
               <p className="text-sm text-gray-400 mb-4">
-                Tell them to replace &quot;YourName&quot; with their actual name before joining.
+                Tell them to replace &quot;YourName&quot; with their actual name
+                before joining.
               </p>
-              
+
               <div className="flex space-x-2">
                 <button
                   onClick={copyRoomLink}
