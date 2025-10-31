@@ -330,6 +330,11 @@ const VideoCallRoom: React.FC = () => {
             {/* Users count */}
             <div className="text-sm text-gray-400">Users: {users.length}</div>
 
+            {/* Peer ID info for manual connection */}
+            <div className="text-xs text-gray-400 max-w-xs">
+              <span className="block">Press F12 for connection info</span>
+            </div>
+
             {/* Share room button */}
             <button
               onClick={() => setShowShareDialog(true)}

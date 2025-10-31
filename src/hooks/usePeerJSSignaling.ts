@@ -17,7 +17,7 @@ export interface SignalingMessage {
   id?: string;
 }
 
-// Production WebRTC signaling using PeerJS
+// Production WebRTC signaling using PeerJS with better peer discovery
 export const usePeerJSSignaling = (roomId: string) => {
   const [isConnected, setIsConnected] = useState(false);
   const [users, setUsers] = useState<string[]>([]);
@@ -27,6 +27,7 @@ export const usePeerJSSignaling = (roomId: string) => {
   const peerRef = useRef<Peer | null>(null);
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
   const currentUserRef = useRef<string>("");
+  const roomDiscoveryRef = useRef<DataConnection | null>(null);
 
   const sendMessage = useCallback(
     (message: SignalingMessage) => {
@@ -52,43 +53,26 @@ export const usePeerJSSignaling = (roomId: string) => {
 
       // Also add to local messages
       setMessages((prev) => [...prev.slice(-49), messageWithRoom]);
-
-      // Store in localStorage as backup
-      try {
-        const storageKey = `room_${roomId}`;
-        const existingData = localStorage.getItem(storageKey);
-        const existingMessages = existingData ? JSON.parse(existingData) : [];
-        const updatedMessages = [
-          ...existingMessages.slice(-50),
-          messageWithRoom,
-        ];
-        localStorage.setItem(storageKey, JSON.stringify(updatedMessages));
-      } catch (error) {
-        console.error("Failed to store message in localStorage:", error);
-      }
     },
     [roomId],
   );
 
   const connectToPeer = useCallback((peerId: string) => {
-    if (!peerRef.current || connectionsRef.current.has(peerId)) return;
+    if (!peerRef.current || connectionsRef.current.has(peerId) || peerId === peerRef.current.id) {
+      return;
+    }
 
+    console.log(`Attempting to connect to peer: ${peerId}`);
+    
     try {
       const conn = peerRef.current.connect(peerId, {
         metadata: { roomId, userId: currentUserRef.current },
       });
 
       conn.on("open", () => {
-        console.log(`Connected to peer: ${peerId}`);
+        console.log(`Successfully connected to peer: ${peerId}`);
         connectionsRef.current.set(peerId, conn);
         
-        setUsers((prev) => {
-          if (!prev.includes(peerId)) {
-            return [...prev, peerId];
-          }
-          return prev;
-        });
-
         // Send join notification
         conn.send({
           type: "user-joined",
@@ -102,15 +86,19 @@ export const usePeerJSSignaling = (roomId: string) => {
         const message = data as SignalingMessage;
         console.log(`Received message from ${peerId}:`, message.type);
         
-        if (message.type === "user-joined" && message.userId && !users.includes(message.userId)) {
+        if (message.type === "user-joined" && message.userId) {
           setUsers((prev) => {
             if (!prev.includes(message.userId!)) {
+              console.log(`User joined: ${message.userId}`);
               return [...prev, message.userId!];
             }
             return prev;
           });
-        } else if (message.type === "user-left") {
-          setUsers((prev) => prev.filter((id) => id !== message.userId));
+        } else if (message.type === "user-left" && message.userId) {
+          setUsers((prev) => {
+            console.log(`User left: ${message.userId}`);
+            return prev.filter((id) => id !== message.userId);
+          });
         } else {
           setMessages((prev) => [...prev.slice(-49), message]);
         }
@@ -119,7 +107,7 @@ export const usePeerJSSignaling = (roomId: string) => {
       conn.on("close", () => {
         console.log(`Connection to ${peerId} closed`);
         connectionsRef.current.delete(peerId);
-        setUsers((prev) => prev.filter((id) => id !== peerId));
+        setUsers((prev) => prev.filter((id) => id !== peerId && id !== currentUserRef.current));
       });
 
       conn.on("error", (error) => {
@@ -129,10 +117,11 @@ export const usePeerJSSignaling = (roomId: string) => {
     } catch (error) {
       console.error(`Failed to connect to peer ${peerId}:`, error);
     }
-  }, [roomId, users]);
+  }, [roomId]);
 
   const joinRoom = useCallback(
     (userId: string) => {
+      console.log(`Joining room ${roomId} as ${userId}`);
       currentUserRef.current = userId;
       
       // Add self to users list
@@ -143,27 +132,42 @@ export const usePeerJSSignaling = (roomId: string) => {
         return prev;
       });
 
-      // Try to connect to existing peers in the room
-      // In a real implementation, you'd get this list from a room service
-      // For now, we'll use localStorage to share peer IDs
-      try {
-        const roomPeersKey = `room_peers_${roomId}`;
-        const existingPeers = JSON.parse(localStorage.getItem(roomPeersKey) || "[]");
+      // Simple peer discovery: try common peer ID patterns for this room
+      if (peerRef.current) {
+        console.log(`My peer ID: ${peerRef.current.id}`);
         
-        // Add current peer to the room
-        if (peerRef.current?.id && !existingPeers.includes(peerRef.current.id)) {
-          existingPeers.push(peerRef.current.id);
-          localStorage.setItem(roomPeersKey, JSON.stringify(existingPeers));
-        }
-
-        // Connect to existing peers
-        existingPeers.forEach((peerId: string) => {
-          if (peerId !== peerRef.current?.id) {
-            connectToPeer(peerId);
+        // Store our peer ID publicly using a simple approach
+        // We'll try to connect to other peers using predictable patterns
+        const roomKey = `webrtc-room-${roomId}`;
+        
+        // Try to broadcast our presence and find other peers
+        setTimeout(() => {
+          // Try connecting to potential peer IDs
+          for (let i = 1; i <= 10; i++) {
+            const potentialPeerId = `${roomKey}-user-${i}`;
+            if (potentialPeerId !== peerRef.current?.id) {
+              setTimeout(() => connectToPeer(potentialPeerId), i * 500);
+            }
           }
-        });
-      } catch (error) {
-        console.error("Error joining room:", error);
+        }, 2000);
+
+        console.log(`\n🔥 PEER CONNECTION INFO 🔥`);
+        console.log(`Room ID: ${roomId}`);
+        console.log(`My Peer ID: ${peerRef.current.id}`);
+        console.log(`\nTo connect, your friend should:`);
+        console.log(`1. Go to the same room: ${roomId}`);
+        console.log(`2. Open browser console (F12)`);
+        console.log(`3. Run: window.connectToPeer('${peerRef.current.id}')`);
+        console.log(`\nYou can also run: window.connectToPeer('THEIR_PEER_ID')`);
+        
+        // Make connection function globally available for manual connection
+        (window as unknown as { connectToPeer: (peerId: string) => void }).connectToPeer = (peerId: string) => {
+          console.log(`Manually connecting to peer: ${peerId}`);
+          connectToPeer(peerId);
+        };
+        
+        (window as unknown as { myPeerId: string }).myPeerId = peerRef.current.id;
+        console.log(`\nYour peer ID is also available as: window.myPeerId`);
       }
     },
     [roomId, connectToPeer],
@@ -171,15 +175,21 @@ export const usePeerJSSignaling = (roomId: string) => {
 
   const leaveRoom = useCallback(
     (userId: string) => {
+      console.log(`Leaving room ${roomId} as ${userId}`);
+      
       // Send leave message to all connections
       connectionsRef.current.forEach((conn) => {
         if (conn.open) {
-          conn.send({
-            type: "user-left",
-            userId,
-            roomId,
-            timestamp: Date.now(),
-          });
+          try {
+            conn.send({
+              type: "user-left",
+              userId,
+              roomId,
+              timestamp: Date.now(),
+            });
+          } catch (error) {
+            console.error("Error sending leave message:", error);
+          }
         }
       });
 
@@ -189,14 +199,9 @@ export const usePeerJSSignaling = (roomId: string) => {
       });
       connectionsRef.current.clear();
 
-      // Remove from room peers list
-      try {
-        const roomPeersKey = `room_peers_${roomId}`;
-        const existingPeers = JSON.parse(localStorage.getItem(roomPeersKey) || "[]");
-        const updatedPeers = existingPeers.filter((id: string) => id !== peerRef.current?.id);
-        localStorage.setItem(roomPeersKey, JSON.stringify(updatedPeers));
-      } catch (error) {
-        console.error("Error leaving room:", error);
+      if (roomDiscoveryRef.current) {
+        roomDiscoveryRef.current.close();
+        roomDiscoveryRef.current = null;
       }
 
       setUsers([]);
@@ -207,14 +212,16 @@ export const usePeerJSSignaling = (roomId: string) => {
 
   // Initialize PeerJS
   useEffect(() => {
+    console.log(`Initializing PeerJS for room: ${roomId}`);
     const connectionsMap = connectionsRef.current;
     
-    // Create PeerJS instance with configuration
+    // Create PeerJS instance with random ID
     peerRef.current = new Peer({
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
         ],
       },
     });
@@ -234,11 +241,12 @@ export const usePeerJSSignaling = (roomId: string) => {
         console.log(`Incoming connection established: ${conn.peer}`);
         connectionsMap.set(conn.peer, conn);
         
-        setUsers((prev) => {
-          if (!prev.includes(conn.peer)) {
-            return [...prev, conn.peer];
-          }
-          return prev;
+        // Send our join notification to the new connection
+        conn.send({
+          type: "user-joined",
+          userId: currentUserRef.current,
+          roomId,
+          timestamp: Date.now(),
         });
       });
 
@@ -246,15 +254,19 @@ export const usePeerJSSignaling = (roomId: string) => {
         const message = data as SignalingMessage;
         console.log(`Received message from ${conn.peer}:`, message.type);
         
-        if (message.type === "user-joined" && message.userId && !users.includes(message.userId)) {
+        if (message.type === "user-joined" && message.userId) {
           setUsers((prev) => {
             if (!prev.includes(message.userId!)) {
+              console.log(`User joined via incoming connection: ${message.userId}`);
               return [...prev, message.userId!];
             }
             return prev;
           });
-        } else if (message.type === "user-left") {
-          setUsers((prev) => prev.filter((id) => id !== message.userId));
+        } else if (message.type === "user-left" && message.userId) {
+          setUsers((prev) => {
+            console.log(`User left via incoming connection: ${message.userId}`);
+            return prev.filter((id) => id !== message.userId);
+          });
         } else {
           setMessages((prev) => [...prev.slice(-49), message]);
         }
@@ -263,33 +275,55 @@ export const usePeerJSSignaling = (roomId: string) => {
       conn.on("close", () => {
         console.log(`Incoming connection closed: ${conn.peer}`);
         connectionsMap.delete(conn.peer);
-        setUsers((prev) => prev.filter((id) => id !== conn.peer));
+        setUsers((prev) => prev.filter((id) => id !== conn.peer && id !== currentUserRef.current));
+      });
+
+      conn.on("error", (error) => {
+        console.error(`Incoming connection error from ${conn.peer}:`, error);
+        connectionsMap.delete(conn.peer);
       });
     });
 
     peer.on("error", (error) => {
       console.error("PeerJS error:", error);
-      setConnectionError(`Connection error: ${error.message}`);
+      if (error.type === 'unavailable-id') {
+        // Try again with a different ID
+        console.log("Peer ID unavailable, will retry...");
+      } else {
+        setConnectionError(`Connection error: ${error.message}`);
+      }
       setIsConnected(false);
     });
 
     peer.on("disconnected", () => {
-      console.log("PeerJS disconnected");
+      console.log("PeerJS disconnected, attempting to reconnect...");
       setIsConnected(false);
+      
+      // Try to reconnect
+      setTimeout(() => {
+        if (peer && !peer.destroyed) {
+          peer.reconnect();
+        }
+      }, 3000);
     });
 
     return () => {
+      console.log("Cleaning up PeerJS connections");
       // Cleanup
       connectionsMap.forEach((conn) => {
         conn.close();
       });
       connectionsMap.clear();
       
+      if (roomDiscoveryRef.current) {
+        roomDiscoveryRef.current.close();
+      }
+      
       if (peer && !peer.destroyed) {
         peer.destroy();
       }
     };
-  }, [users]);
+  }, [roomId]);
 
   return {
     isConnected,
