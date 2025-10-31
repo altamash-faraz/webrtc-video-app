@@ -105,7 +105,12 @@ export const useWebRTC = () => {
       
       // Check if getUserMedia is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera/microphone access not supported in this browser or context. Try using HTTPS or a modern browser.');
+        throw new Error('Camera/microphone access not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+      }
+      
+      // Check if we're in a secure context for production
+      if (typeof window !== 'undefined' && !window.isSecureContext) {
+        throw new Error('Camera access requires HTTPS. This app works best when deployed to a secure server.');
       }
       
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -132,13 +137,15 @@ export const useWebRTC = () => {
       
       if (error instanceof Error) {
         if (error.name === 'NotAllowedError') {
-          errorMessage = 'Camera/microphone access denied. Please allow permissions and try again.';
+          errorMessage = 'Camera/microphone access denied. Please click the camera icon in your browser\'s address bar and allow permissions, then refresh the page.';
         } else if (error.name === 'NotFoundError') {
-          errorMessage = 'No camera/microphone found. Please connect a camera and microphone.';
+          errorMessage = 'No camera/microphone found. Please connect a camera and microphone and refresh the page.';
         } else if (error.name === 'NotSupportedError') {
-          errorMessage = 'Camera/microphone not supported. Try using HTTPS or a modern browser.';
-        } else if (error.message.includes('getUserMedia')) {
-          errorMessage = 'Camera access requires HTTPS. Try using ngrok or deploy to a secure server.';
+          errorMessage = 'Camera/microphone not supported. Please use a modern browser like Chrome, Firefox, or Safari.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage = 'Camera/microphone is being used by another application. Please close other apps using your camera and try again.';
+        } else if (error.message.includes('getUserMedia') || error.message.includes('HTTPS')) {
+          errorMessage = error.message;
         } else {
           errorMessage = error.message;
         }

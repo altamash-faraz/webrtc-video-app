@@ -111,7 +111,7 @@ const VideoCallRoom: React.FC = () => {
           startDemoMode();
           joinRoom(username);
           setIsInitialized(true);
-          setConnectionError('Camera access not available. Running in demo mode - signaling and UI features work normally.');
+          setConnectionError('Camera/microphone access not available. Please allow permissions in your browser and refresh the page. The app will work for text chat and screen sharing.');
         } catch {
           setConnectionError(error instanceof Error ? error.message : 'Failed to initialize video call');
         }
@@ -214,21 +214,50 @@ const VideoCallRoom: React.FC = () => {
 
   if (connectionError || signalingError) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded max-w-md">
-          <strong className="font-bold">Connection Error: </strong>
-          <span className="block sm:inline">{connectionError || signalingError}</span>
-          {signalingError && (
-            <p className="text-sm mt-2 text-yellow-600">
-              Note: App is running in fallback mode. WebRTC will still work locally.
-            </p>
-          )}
-          <button
-            onClick={() => window.location.href = '/'}
-            className="mt-2 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
-            Go Back
-          </button>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg max-w-lg mx-auto">
+          <div className="flex items-center mb-3">
+            <svg className="w-6 h-6 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <strong className="font-bold">Camera/Microphone Access Required</strong>
+          </div>
+          
+          <div className="mb-4">
+            <p className="text-sm mb-2">{connectionError || signalingError}</p>
+            
+            {connectionError && (
+              <div className="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded text-sm">
+                <p className="font-semibold mb-2">To fix this issue:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Click the camera/lock icon in your browser&apos;s address bar</li>
+                  <li>Allow camera and microphone permissions</li>
+                  <li>Refresh this page</li>
+                </ol>
+              </div>
+            )}
+            
+            {signalingError && (
+              <p className="text-sm mt-3 text-yellow-600 bg-yellow-50 border border-yellow-200 p-2 rounded">
+                <strong>Note:</strong> The video calling features will still work when both users are in the same room.
+              </p>
+            )}
+          </div>
+          
+          <div className="flex space-x-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
+            >
+              Go Back
+            </button>
+          </div>
         </div>
       </div>
     );
