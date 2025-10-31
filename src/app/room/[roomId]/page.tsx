@@ -71,7 +71,6 @@ const VideoCallRoom: React.FC = () => {
   const {
     users,
     messages,
-    connectionError: signalingError,
     sendMessage,
     joinRoom,
     leaveRoom,
@@ -104,16 +103,22 @@ const VideoCallRoom: React.FC = () => {
       } catch (error) {
         if (!mounted) return;
 
-        console.warn("Camera access failed, starting demo mode:", error);
+        console.warn("Camera access failed, trying demo mode:", error);
 
-        // Try demo mode as fallback
+        // Only set error for actual camera access issues, not fallback mode
+        if (error instanceof Error && error.name === "NotAllowedError") {
+          setConnectionError(
+            "Camera/microphone access denied. Please click the camera icon in your browser's address bar and allow permissions, then refresh the page.",
+          );
+          return;
+        }
+
+        // Try demo mode as fallback for other issues
         try {
           startDemoMode();
           joinRoom(username);
           setIsInitialized(true);
-          setConnectionError(
-            "Camera/microphone access not available. Please allow permissions in your browser and refresh the page. The app will work for text chat and screen sharing.",
-          );
+          // Don't set connectionError for demo mode - it's working as intended
         } catch {
           setConnectionError(
             error instanceof Error
@@ -228,7 +233,10 @@ const VideoCallRoom: React.FC = () => {
     window.location.href = "/";
   };
 
-  if (connectionError || signalingError) {
+  // Only show errors for actual camera permission issues, not signaling fallback
+  const shouldShowError = connectionError && !connectionError.includes("signaling server");
+  
+  if (shouldShowError) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg max-w-lg mx-auto">
@@ -250,7 +258,7 @@ const VideoCallRoom: React.FC = () => {
           </div>
 
           <div className="mb-4">
-            <p className="text-sm mb-2">{connectionError || signalingError}</p>
+            <p className="text-sm mb-2">{connectionError}</p>
 
             {connectionError && (
               <div className="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded text-sm">
@@ -264,13 +272,6 @@ const VideoCallRoom: React.FC = () => {
                   <li>Refresh this page</li>
                 </ol>
               </div>
-            )}
-
-            {signalingError && (
-              <p className="text-sm mt-3 text-yellow-600 bg-yellow-50 border border-yellow-200 p-2 rounded">
-                <strong>Note:</strong> The video calling features will still
-                work when both users are in the same room.
-              </p>
             )}
           </div>
 

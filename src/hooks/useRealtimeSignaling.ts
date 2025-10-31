@@ -28,8 +28,7 @@ export const useRealtimeSignaling = (roomId: string) => {
 
   // Connect to signaling server (you can replace with your own server)
   const SIGNALING_SERVER =
-    process.env.NEXT_PUBLIC_SIGNALING_SERVER ||
-    "https://webrtc-signaling-server.herokuapp.com";
+    process.env.NEXT_PUBLIC_SIGNALING_SERVER || "disabled";
   const SOCKET_DISABLED = SIGNALING_SERVER === "disabled";
 
   const sendMessage = useCallback(
