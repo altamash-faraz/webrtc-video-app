@@ -4,8 +4,8 @@ import React, { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import VideoPlayer from "@/components/VideoPlayer";
 import CallControls from "@/components/CallControls";
-import { useWebRTC } from "@/hooks/useWebRTC";
-import { useRealtimeSignaling } from "@/hooks/useRealtimeSignaling";
+import { useWebRTC } from '@/hooks/useWebRTC';
+import { usePeerJSSignaling } from '@/hooks/usePeerJSSignaling';
 
 const VideoCallRoom: React.FC = () => {
   const params = useParams();
@@ -74,7 +74,7 @@ const VideoCallRoom: React.FC = () => {
     sendMessage,
     joinRoom,
     leaveRoom,
-  } = useRealtimeSignaling(roomId);
+  } = usePeerJSSignaling(roomId);
 
   // Initialize video when component mounts - only run once
   useEffect(() => {
@@ -433,7 +433,7 @@ const VideoCallRoom: React.FC = () => {
             <div>
               <span className="text-gray-400">Connected Users:</span>
               <div className="flex flex-wrap gap-1 mt-1">
-                {users.map((user) => (
+                {users.map((user: string) => (
                   <span
                     key={user}
                     className={`px-2 py-1 rounded text-xs ${
